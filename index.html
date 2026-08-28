@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Contratos · Lighthouse Ventures</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#14191f">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --ink:#14191f;
+    --ink-2:#1d242c;
+    --ink-3:#262f3a;
+    --paper:#f7f3ea;
+    --paper-line:#d9d2c0;
+    --brass:#b8923f;
+    --brass-deep:#7a5e21;
+    --brass-light:#e7d4a3;
+    --ink-text:#eae6da;
+    --slate:#8b93a1;
+    --danger:#c25b4a;
+    --success:#4a8f6b;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--ink-text);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:16px 20px;
+    border-bottom:1px solid var(--ink-3);
+    position:sticky;
+    top:0;
+    background:var(--ink);
+    z-index:10;
+  }
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand-mark{
+    width:34px;height:34px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, var(--brass-light), var(--brass) 60%, var(--brass-deep));
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Fraunces',serif;font-weight:600;color:var(--ink);font-size:16px;
+  }
+  .brand-name{font-family:'Fraunces',serif;font-size:17px;font-weight:600;letter-spacing:.2px;}
+  .brand-sub{font-size:11px;color:var(--slate);margin-top:1px;}
+  nav{display:flex;gap:4px;background:var(--ink-2);border-radius:999px;padding:4px;}
+  nav button{
+    border:none;background:transparent;color:var(--slate);
+    padding:8px 14px;border-radius:999px;font-size:13px;font-family:'Inter',sans-serif;
+    cursor:pointer;transition:.15s;font-weight:500;
+  }
+  nav button.active{background:var(--brass);color:var(--ink);}
+  main{max-width:640px;margin:0 auto;padding:24px 16px 80px;}
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .sheet{
+    background:var(--paper);
+    color:#2a261d;
+    border-radius:var(--radius);
+    padding:28px 24px;
+    box-shadow:0 20px 40px rgba(0,0,0,.35);
+  }
+  .sheet-head{
+    display:flex;justify-content:space-between;align-items:flex-start;
+    border-bottom:1px solid var(--paper-line);padding-bottom:14px;margin-bottom:16px;
+  }
+  .sheet-title{font-family:'Fraunces',serif;font-size:22px;font-weight:600;margin:0;}
+  .sheet-date{
+    text-align:right;font-size:12px;color:#6b6455;
+  }
+  .sheet-date b{display:block;font-size:14px;color:#2a261d;font-family:'Source Serif 4',serif;}
+
+  .contract-text{
+    font-family:'Source Serif 4',serif;font-size:14.5px;line-height:1.7;
+    white-space:pre-wrap;color:#2a261d;
+  }
+  .edit-toggle{
+    margin-top:10px;font-size:12px;color:var(--brass-deep);background:none;border:none;
+    text-decoration:underline;cursor:pointer;padding:0;font-family:'Inter',sans-serif;
+  }
+  textarea.contract-edit{
+    width:100%;min-height:220px;font-family:'Source Serif 4',serif;font-size:14px;
+    line-height:1.6;border:1px solid var(--paper-line);border-radius:8px;padding:12px;
+    background:#fffdf8;color:#2a261d;
+  }
+
+  .signers{margin-top:22px;display:flex;flex-direction:column;gap:16px;}
+  .signer-card{
+    border:1px solid var(--paper-line);border-radius:10px;padding:14px;background:#fffdf8;
+  }
+  .signer-row{display:flex;gap:10px;margin-bottom:10px;}
+  .field{flex:1;display:flex;flex-direction:column;gap:4px;}
+  .field label{font-size:11px;color:#8a8371;font-weight:600;letter-spacing:.03em;text-transform:uppercase;}
+  .field input{
+    border:1px solid var(--paper-line);border-radius:8px;padding:9px 10px;
+    font-size:14px;font-family:'Inter',sans-serif;background:#fff;color:#2a261d;
+  }
+  .field input:focus{outline:2px solid var(--brass);outline-offset:0;}
+  .pad-wrap{position:relative;}
+  .sig-pad{
+    width:100%;height:130px;border:1.5px dashed var(--paper-line);border-radius:8px;
+    background:#fff;touch-action:none;display:block;
+  }
+  .sig-hint{
+    position:absolute;left:12px;top:50%;transform:translateY(-50%);
+    font-size:12px;color:#b3ab97;pointer-events:none;font-style:italic;
+  }
+  .sig-row{display:flex;justify-content:space-between;align-items:center;margin-top:6px;}
+  .clear-btn{
+    font-size:12px;color:var(--danger);background:none;border:none;cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+  .remove-signer{
+    font-size:12px;color:#8a8371;background:none;border:none;cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+
+  .add-signer{
+    width:100%;padding:12px;border:1.5px dashed var(--paper-line);border-radius:10px;
+    background:transparent;color:#6b6455;font-family:'Inter',sans-serif;font-size:13px;
+    cursor:pointer;margin-top:4px;font-weight:500;
+  }
+
+  .actions{margin-top:22px;display:flex;gap:10px;}
+  .btn{
+    flex:1;padding:14px;border-radius:10px;border:none;font-size:14px;font-weight:600;
+    font-family:'Inter',sans-serif;cursor:pointer;
+  }
+  .btn-primary{background:var(--brass);color:var(--ink);}
+  .btn-primary:active{transform:scale(.98);}
+  .error-msg{color:var(--danger);font-size:12.5px;margin-top:10px;display:none;}
+
+  .seal-overlay{
+    position:fixed;inset:0;background:rgba(20,25,31,.7);display:none;
+    align-items:center;justify-content:center;z-index:50;flex-direction:column;gap:14px;
+  }
+  .seal-overlay.show{display:flex;}
+  .seal{
+    width:110px;height:110px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, var(--brass-light), var(--brass) 55%, var(--brass-deep));
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Fraunces',serif;font-weight:600;color:var(--ink);font-size:13px;text-align:center;
+    transform:scale(0);animation:stamp .5s cubic-bezier(.2,1.4,.4,1) forwards;
+    box-shadow:0 10px 30px rgba(0,0,0,.4);
+  }
+  @keyframes stamp{
+    0%{transform:scale(2.2) rotate(-8deg);opacity:0;}
+    60%{transform:scale(.9) rotate(2deg);opacity:1;}
+    100%{transform:scale(1) rotate(0);}
+  }
+  .seal-caption{color:var(--ink-text);font-size:14px;font-weight:500;}
+
+  .list-item{
+    background:var(--ink-2);border-radius:12px;padding:14px 16px;margin-bottom:10px;
+    display:flex;justify-content:space-between;align-items:center;gap:10px;
+  }
+  .list-item .li-main{min-width:0;}
+  .list-item .li-title{font-size:14px;font-weight:500;color:var(--ink-text);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .list-item .li-sub{font-size:12px;color:var(--slate);margin-top:2px;}
+  .li-actions{display:flex;gap:6px;flex-shrink:0;}
+  .icon-btn{
+    width:34px;height:34px;border-radius:8px;border:1px solid var(--ink-3);background:transparent;
+    color:var(--ink-text);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;
+  }
+  .empty-state{
+    text-align:center;padding:60px 20px;color:var(--slate);
+  }
+  .empty-state .em-title{font-family:'Fraunces',serif;font-size:17px;color:var(--ink-text);margin-bottom:6px;}
+
+  .settings-block{background:var(--ink-2);border-radius:12px;padding:18px;margin-bottom:14px;}
+  .settings-block h3{font-size:13px;margin:0 0 10px;color:var(--ink-text);font-weight:600;}
+  .settings-block p.hint{font-size:12px;color:var(--slate);margin:6px 0 10px;line-height:1.5;}
+  .settings-block input[type=text],.settings-block input[type=email]{
+    width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--ink-3);
+    background:var(--ink);color:var(--ink-text);font-size:13px;font-family:'Inter',sans-serif;
+  }
+  .save-note{font-size:12px;color:var(--success);margin-top:8px;display:none;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-mark">L</div>
+    <div>
+      <div class="brand-name">Contratos</div>
+      <div class="brand-sub">Lighthouse Ventures</div>
+    </div>
+  </div>
+  <nav>
+    <button data-view="nuevo" class="active">Nuevo</button>
+    <button data-view="firmados">Firmados</button>
+    <button data-view="ajustes">Ajustes</button>
+  </nav>
+</div>
+
+<main>
+
+  <section id="view-nuevo" class="view active">
+    <div class="sheet">
+      <div class="sheet-head">
+        <h1 class="sheet-title">Contrato de servicios</h1>
+        <div class="sheet-date">Fecha de firma<b id="hoy-fecha"></b></div>
+      </div>
+
+      <div id="contract-text-display" class="contract-text"></div>
+      <button class="edit-toggle" id="btn-edit-contract" type="button">Editar texto del contrato</button>
+      <textarea id="contract-textarea" class="contract-edit" style="display:none"></textarea>
+
+      <div class="signers" id="signers"></div>
+      <button class="add-signer" id="btn-add-signer" type="button">+ Añadir firmante</button>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="btn-sign">Firmar y guardar contrato</button>
+      </div>
+      <div class="error-msg" id="error-msg"></div>
+    </div>
+  </section>
+
+  <section id="view-firmados" class="view">
+    <div id="firmados-list"></div>
+  </section>
+
+  <section id="view-ajustes" class="view">
+    <div class="settings-block">
+      <h3>Envío automático por email</h3>
+      <p class="hint">Pega aquí la URL de tu Google Apps Script (ver instrucciones que te he dado aparte). Cada vez que se firme un contrato, se enviará un aviso con el PDF a tu Gmail.</p>
+      <input type="text" id="input-webhook" placeholder="https://script.google.com/macros/s/.../exec">
+      <div class="save-note" id="note-webhook">Guardado.</div>
+    </div>
+    <div class="settings-block">
+      <h3>Email de destino</h3>
+      <p class="hint">La cuenta de Gmail donde quieres recibir el aviso.</p>
+      <input type="email" id="input-email" placeholder="tucorreo@gmail.com">
+      <div class="save-note" id="note-email">Guardado.</div>
+    </div>
+  </section>
+
+</main>
+
+<div class="seal-overlay" id="seal-overlay">
+  <div class="seal">FIRMADO</div>
+  <div class="seal-caption" id="seal-caption">Contrato guardado</div>
+</div>
+
+<script>
+const DEFAULT_CONTRACT = `Entre LIGHTHOUSE VENTURES, SL y el/los firmante(s) abajo indicados, se establece el presente contrato de servicios en los términos y condiciones que ambas partes aceptan al firmar este documento.
+
+[Sustituye este texto por el contrato tipo definitivo desde "Editar texto del contrato". Se guardará para las siguientes firmas.]
+
+Cada firmante declara haber leído y aceptado el contenido íntegro de este documento, identificándose con su nombre completo y DNI, y estampando su firma junto a la fecha indicada.`;
+
+let signerSeq = 0;
+const signersData = {};
+
+function fmtFecha(d){
+  return d.toLocaleDateString('es-ES', {day:'2-digit', month:'2-digit', year:'numeric'});
+}
+document.getElementById('hoy-fecha').textContent = fmtFecha(new Date());
+
+function loadContractText(){
+  return localStorage.getItem('contratos_texto') || DEFAULT_CONTRACT;
+}
+function renderContractText(){
+  document.getElementById('contract-text-display').textContent = loadContractText();
+}
+renderContractText();
+
+document.getElementById('btn-edit-contract').addEventListener('click', () => {
+  const disp = document.getElementById('contract-text-display');
+  const ta = document.getElementById('contract-textarea');
+  const btn = document.getElementById('btn-edit-contract');
+  if (ta.style.display === 'none'){
+    ta.value = loadContractText();
+    disp.style.display = 'none';
+    ta.style.display = 'block';
+    btn.textContent = 'Guardar texto del contrato';
+  } else {
+    localStorage.setItem('contratos_texto', ta.value.trim() || DEFAULT_CONTRACT);
+    renderContractText();
+    disp.style.display = 'block';
+    ta.style.display = 'none';
+    btn.textContent = 'Editar texto del contrato';
+  }
+});
+
+function addSigner(){
+  const id = 'signer-' + (signerSeq++);
+  const wrap = document.createElement('div');
+  wrap.className = 'signer-card';
+  wrap.dataset.id = id;
+  wrap.innerHTML = `
+    <div class="signer-row">
+      <div class="field">
+        <label>Nombre completo</label>
+        <input type="text" class="in-nombre" placeholder="Nombre y apellidos">
+      </div>
+      <div class="field">
+        <label>DNI / NIE</label>
+        <input type="text" class="in-dni" placeholder="12345678A">
+      </div>
+    </div>
+    <div class="pad-wrap">
+      <canvas class="sig-pad"></canvas>
+      <span class="sig-hint">Firma aquí</span>
+    </div>
+    <div class="sig-row">
+      <button type="button" class="clear-btn">Borrar firma</button>
+      <button type="button" class="remove-signer">Quitar firmante</button>
+    </div>
+  `;
+  document.getElementById('signers').appendChild(wrap);
+
+  const canvas = wrap.querySelector('.sig-pad');
+  const hint = wrap.querySelector('.sig-hint');
+  const ctx = canvas.getContext('2d');
+  function resize(){
+    const rect = canvas.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = rect.width * ratio;
+    canvas.height = rect.height * ratio;
+    ctx.scale(ratio, ratio);
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#2a261d';
+  }
+  resize();
+  let drawing = false, hasSignature = false;
+  function pos(e){
+    const rect = canvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return {x: t.clientX - rect.left, y: t.clientY - rect.top};
+  }
+  function start(e){
+    e.preventDefault();
+    drawing = true; hasSignature = true;
+    hint.style.display = 'none';
+    const p = pos(e);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+  }
+  function move(e){
+    if(!drawing) return;
+    e.preventDefault();
+    const p = pos(e);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }
+  function end(){ drawing = false; }
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+  canvas.addEventListener('touchstart', start, {passive:false});
+  canvas.addEventListener('touchmove', move, {passive:false});
+  canvas.addEventListener('touchend', end);
+
+  wrap.querySelector('.clear-btn').addEventListener('click', () => {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    hasSignature = false;
+    hint.style.display = 'block';
+  });
+  wrap.querySelector('.remove-signer').addEventListener('click', () => {
+    wrap.remove();
+    delete signersData[id];
+  });
+
+  signersData[id] = {
+    getNombre: () => wrap.querySelector('.in-nombre').value.trim(),
+    getDni: () => wrap.querySelector('.in-dni').value.trim(),
+    hasSignature: () => hasSignature,
+    getSignatureDataUrl: () => canvas.toDataURL('image/png')
+  };
+}
+document.getElementById('btn-add-signer').addEventListener('click', addSigner);
+addSigner();
+
+function showError(msg){
+  const el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function hideError(){
+  document.getElementById('error-msg').style.display = 'none';
+}
+
+function getFirmados(){
+  return JSON.parse(localStorage.getItem('contratos_firmados') || '[]');
+}
+function saveFirmados(list){
+  localStorage.setItem('contratos_firmados', JSON.stringify(list));
+}
+
+async function firmarContrato(){
+  hideError();
+  const ids = Object.keys(signersData);
+  if (ids.length === 0){ showError('Añade al menos un firmante.'); return; }
+  const firmantes = [];
+  for (const id of ids){
+    const s = signersData[id];
+    const nombre = s.getNombre(), dni = s.getDni();
+    if (!nombre || !dni){ showError('Rellena el nombre y el DNI de todos los firmantes.'); return; }
+    if (!s.hasSignature()){ showError(`Falta la firma de ${nombre || 'un firmante'}.`); return; }
+    firmantes.push({nombre, dni, firma: s.getSignatureDataUrl()});
+  }
+
+  const fecha = fmtFecha(new Date());
+  const texto = loadContractText();
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'a4'});
+  const marginX = 48;
+  let y = 60;
+  doc.setFont('times','bold'); doc.setFontSize(16);
+  doc.text('Contrato de servicios', marginX, y);
+  doc.setFont('times','normal'); doc.setFontSize(10);
+  doc.text(`Fecha de firma: ${fecha}`, 595 - marginX, y, {align:'right'});
+  y += 26;
+  doc.setFontSize(11);
+  const lines = doc.splitTextToSize(texto, 595 - marginX*2);
+  doc.text(lines, marginX, y);
+  y += lines.length * 14 + 20;
+
+  for (const f of firmantes){
+    if (y > 680){ doc.addPage(); y = 60; }
+    doc.setFont('times','bold'); doc.setFontSize(11);
+    doc.text(f.nombre, marginX, y);
+    doc.setFont('times','normal'); doc.setFontSize(9);
+    doc.text(`DNI/NIE: ${f.dni}`, marginX, y + 14);
+    doc.text(`Fecha: ${fecha}`, marginX, y + 27);
+    try{ doc.addImage(f.firma, 'PNG', marginX + 200, y - 20, 160, 55); }catch(e){}
+    y += 70;
+  }
+
+  const pdfDataUrl = doc.output('datauristring');
+  const nombreResumen = firmantes.map(f=>f.nombre).join(', ');
+  const registro = {
+    id: 'c' + Date.now(),
+    fecha,
+    timestamp: Date.now(),
+    nombreResumen,
+    firmantes: firmantes.map(f=>({nombre:f.nombre, dni:f.dni})),
+    pdf: pdfDataUrl
+  };
+  const list = getFirmados();
+  list.unshift(registro);
+  saveFirmados(list);
+  renderFirmados();
+
+  document.getElementById('seal-caption').textContent = `Guardado: ${nombreResumen}`;
+  const overlay = document.getElementById('seal-overlay');
+  overlay.classList.add('show');
+  setTimeout(() => overlay.classList.remove('show'), 1600);
+
+  document.getElementById('signers').innerHTML = '';
+  Object.keys(signersData).forEach(k => delete signersData[k]);
+  addSigner();
+
+  enviarAvisoEmail(registro);
+}
+document.getElementById('btn-sign').addEventListener('click', firmarContrato);
+
+async function enviarAvisoEmail(registro){
+  const url = localStorage.getItem('contratos_webhook_url');
+  const email = localStorage.getItem('contratos_email_destino');
+  if (!url) return;
+  try{
+    await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        to: email || '',
+        asunto: `Contrato firmado: ${registro.nombreResumen}`,
+        fecha: registro.fecha,
+        firmantes: registro.firmantes,
+        pdfBase64: registro.pdf.split(',')[1]
+      })
+    });
+  }catch(e){
+    console.warn('No se pudo avisar por email', e);
+  }
+}
+
+function renderFirmados(){
+  const list = getFirmados();
+  const el = document.getElementById('firmados-list');
+  if (list.length === 0){
+    el.innerHTML = `<div class="empty-state"><div class="em-title">Sin contratos firmados</div>Los contratos que firmes aparecerán aquí.</div>`;
+    return;
+  }
+  el.innerHTML = '';
+  for (const c of list){
+    const div = document.createElement('div');
+    div.className = 'list-item';
+    div.innerHTML = `
+      <div class="li-main">
+        <div class="li-title">${c.nombreResumen}</div>
+        <div class="li-sub">${c.fecha} · ${c.firmantes.length} firmante${c.firmantes.length>1?'s':''}</div>
+      </div>
+      <div class="li-actions">
+        <a class="icon-btn" href="${c.pdf}" download="contrato-${c.id}.pdf" title="Descargar">↓</a>
+        <button class="icon-btn" data-del="${c.id}" title="Eliminar">✕</button>
+      </div>
+    `;
+    el.appendChild(div);
+  }
+  el.querySelectorAll('[data-del]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.del;
+      saveFirmados(getFirmados().filter(c => c.id !== id));
+      renderFirmados();
+    });
+  });
+}
+renderFirmados();
+
+document.querySelectorAll('nav button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('view-' + btn.dataset.view).classList.add('active');
+  });
+});
+
+const inputWebhook = document.getElementById('input-webhook');
+const inputEmail = document.getElementById('input-email');
+inputWebhook.value = localStorage.getItem('contratos_webhook_url') || '';
+inputEmail.value = localStorage.getItem('contratos_email_destino') || '';
+inputWebhook.addEventListener('change', () => {
+  localStorage.setItem('contratos_webhook_url', inputWebhook.value.trim());
+  const n = document.getElementById('note-webhook');
+  n.style.display='block'; setTimeout(()=>n.style.display='none', 1500);
+});
+inputEmail.addEventListener('change', () => {
+  localStorage.setItem('contratos_email_destino', inputEmail.value.trim());
+  const n = document.getElementById('note-email');
+  n.style.display='block'; setTimeout(()=>n.style.display='none', 1500);
+});
+</script>
+</body>
+</html>

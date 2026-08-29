@@ -57,6 +57,12 @@
   .doc-bar span{display:block;height:100%;width:0;background:var(--brass);transition:width .15s;}
   .doc-progress.done{color:var(--success);font-weight:600;}
 
+  .clausulas{margin:14px 0;display:flex;flex-direction:column;gap:10px;}
+  .clausula{padding:11px 12px;border-left:3px solid var(--brass);border-radius:0 8px 8px 0;
+            background:rgba(255,253,248,.85);}
+  .clausula-cab{font-family:'Inter',sans-serif;font-size:10.5px;font-weight:700;letter-spacing:.06em;
+                text-transform:uppercase;color:var(--brass-deep);margin-bottom:6px;}
+
   .signers{margin-top:18px;display:flex;flex-direction:column;gap:14px;}
   .signer-card{border:1px solid var(--paper-line);border-radius:10px;padding:13px;background:rgba(255,253,248,.9);}
   .signer-num{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--brass-deep);margin-bottom:9px;}
@@ -85,8 +91,9 @@
   .actions{margin-top:16px;}
   .btn{width:100%;padding:14px;border-radius:10px;border:none;font-size:14.5px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;}
   .btn-primary{background:var(--brass);color:var(--ink);}
-  .btn-primary:disabled{background:#cdc4ae;color:#7d7867;cursor:not-allowed;}
-  .btn-primary:active:not(:disabled){transform:scale(.99);}
+  .btn-primary{opacity:.55;transition:opacity .2s;}
+  .btn-primary.listo{opacity:1;box-shadow:0 4px 14px rgba(184,146,63,.35);}
+  .btn-primary:active{transform:scale(.99);}
   .error-msg{color:var(--danger);font-size:12.5px;margin-top:10px;display:none;line-height:1.45;}
 
   .seal-overlay{position:fixed;inset:0;background:rgba(20,25,31,.72);display:none;align-items:center;justify-content:center;z-index:50;flex-direction:column;gap:14px;padding:20px;text-align:center;}
@@ -349,33 +356,53 @@ function clausula1Texto(s, plano){
 
 function renderDoc(){
   const doc = document.getElementById('doc');
+  const prevTop = doc.scrollTop;
   const ids = Object.keys(signersData);
-  let clausulas;
-  if (ids.length === 0){
-    clausulas = clausula1Texto(null,false);
-  } else {
-    clausulas = ids.map((id,i) => {
-      const t = clausula1Texto(signersData[id],false);
-      return ids.length > 1 ? t.replace(/^1\./, `1.${i+1}`) : t;
-    }).join('\n\n');
-  }
+
   doc.innerHTML = '';
   const add = (txt, isTitle) => {
     const el = document.createElement(isTitle ? 'h4' : 'div');
     el.textContent = txt;
     doc.appendChild(el);
   };
+
   add(CONTRATO.intro);
-  const c = document.createElement('div');
-  c.style.margin = '12px 0';
-  c.style.padding = '10px';
-  c.style.borderLeft = '3px solid #b8923f';
-  c.style.background = 'rgba(255,253,248,.75)';
-  c.textContent = clausulas;
-  doc.appendChild(c);
+
+  // bloque de cláusulas: una tarjeta independiente por firmante
+  const cont = document.createElement('div');
+  cont.className = 'clausulas';
+  if (ids.length === 0){
+    const b = document.createElement('div');
+    b.className = 'clausula';
+    b.textContent = clausula1Texto(null, false);
+    cont.appendChild(b);
+  } else {
+    ids.forEach((id, i) => {
+      const s2 = signersData[id];
+      const b = document.createElement('div');
+      b.className = 'clausula';
+      if (ids.length > 1){
+        const cab = document.createElement('div');
+        cab.className = 'clausula-cab';
+        const nom = s2.getNombre();
+        cab.textContent = 'Firmante ' + (i+1) + (nom ? ' · ' + nom : '');
+        b.appendChild(cab);
+      }
+      const p = document.createElement('div');
+      let t = clausula1Texto(s2, false);
+      if (ids.length > 1) t = t.replace(/^1\./, '1.' + (i+1));
+      p.textContent = t;
+      b.appendChild(p);
+      cont.appendChild(b);
+    });
+  }
+  doc.appendChild(cont);
+
   add(CONTRATO.cuerpo);
   add(CONTRATO.anexoTitulo, true);
   add(CONTRATO.anexo);
+
+  doc.scrollTop = prevTop;
   actualizarProgresoLectura();
 }
 
@@ -387,9 +414,9 @@ function actualizarProgresoLectura(){
   const wrap = document.getElementById('doc-progress');
   const fade = document.getElementById('doc-fade');
   const max = doc.scrollHeight - doc.clientHeight;
-  const pct = max <= 4 ? 100 : Math.min(100, Math.round((doc.scrollTop / max) * 100));
+  const pct = max <= 8 ? 100 : Math.min(100, Math.round((doc.scrollTop / max) * 100));
   fill.style.width = pct + '%';
-  if (pct >= 98){
+  if (pct >= 94){
     leidoHastaFinal = true;
     label.textContent = 'Contrato leído hasta el final';
     wrap.classList.add('done');
@@ -406,8 +433,7 @@ window.addEventListener('resize', actualizarProgresoLectura);
 
 function actualizarBoton(){
   const btn = document.getElementById('btn-sign');
-  const acepto = document.getElementById('chk-acepto').checked;
-  btn.disabled = !(leidoHastaFinal && acepto);
+  btn.classList.toggle('listo', leidoHastaFinal && document.getElementById('chk-acepto').checked);
 }
 document.getElementById('chk-acepto').addEventListener('change', actualizarBoton);
 
@@ -626,7 +652,12 @@ function construirPDF(firmantes, d){
 async function firmarContrato(){
   hideError();
   try{
-    if (!leidoHastaFinal){ showError('Desliza el contrato hasta el final antes de firmar.'); return; }
+    if (!leidoHastaFinal){
+      showError('Desliza el contrato hasta el final antes de firmar. Te llevo hasta ahí.');
+      const doc = document.getElementById('doc');
+      doc.scrollTo({top: doc.scrollHeight, behavior: 'smooth'});
+      return;
+    }
     if (!document.getElementById('chk-acepto').checked){ showError('Debes marcar la casilla de aceptación.'); return; }
 
     const ids = Object.keys(signersData);

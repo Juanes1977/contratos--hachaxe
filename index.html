@@ -82,6 +82,8 @@
   .remove-signer{font-size:12px;color:#8a8371;background:none;border:none;cursor:pointer;font-family:'Inter',sans-serif;}
   .add-signer{width:100%;padding:12px;border:1.5px dashed var(--paper-line);border-radius:10px;background:transparent;color:#6b6455;font-family:'Inter',sans-serif;font-size:13px;cursor:pointer;margin-top:12px;font-weight:500;}
 
+  .contador{margin-top:9px;text-align:center;font-size:11.5px;color:var(--brass-deep);font-weight:600;
+            letter-spacing:.03em;}
   .final-declaration{margin-top:16px;padding:12px;border-radius:9px;background:#f0e9d7;border:1px solid var(--paper-line);
     font-family:'Source Serif 4',serif;font-size:11.5px;line-height:1.55;color:#3a3527;}
   .accept-row{display:flex;align-items:flex-start;gap:9px;margin-top:12px;font-size:13px;color:#2a261d;cursor:pointer;line-height:1.45;}
@@ -110,6 +112,22 @@
   .icon-btn{width:34px;height:34px;border-radius:8px;border:1px solid var(--ink-3);background:transparent;color:var(--ink-text);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;text-decoration:none;}
   .empty-state{text-align:center;padding:60px 20px;color:var(--slate);}
   .empty-state .em-title{font-family:'Fraunces',serif;font-size:17px;color:var(--ink-text);margin-bottom:6px;}
+
+  .envio-box{background:var(--ink-2);border-radius:12px;padding:15px;margin-bottom:16px;}
+  .envio-box h3{font-size:13px;margin:0 0 9px;color:var(--ink-text);font-weight:600;}
+  .envio-box input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--ink-3);
+    background:var(--ink);color:var(--ink-text);font-size:13.5px;font-family:'Inter',sans-serif;}
+  .envio-actions{margin-top:10px;}
+  .btn-envio{width:100%;padding:11px;border-radius:9px;border:none;background:var(--brass);color:var(--ink);
+    font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;}
+  .btn-envio:disabled{opacity:.5;cursor:not-allowed;}
+  .badge{display:inline-block;margin-top:6px;padding:3px 8px;border-radius:999px;font-size:10.5px;font-weight:600;letter-spacing:.03em;}
+  .badge.enviado{background:rgba(74,143,107,.16);color:#79c39b;}
+  .badge.pendiente{background:rgba(184,146,63,.16);color:var(--brass-light);}
+  .envio-estado{margin-top:10px;font-size:12.5px;line-height:1.5;color:var(--slate);display:none;}
+  .envio-estado.show{display:block;}
+  .envio-estado.ok{color:var(--success);}
+  .envio-estado.err{color:var(--danger);}
 
   .settings-block{background:var(--ink-2);border-radius:12px;padding:16px;margin-bottom:12px;}
   .settings-block h3{font-size:13px;margin:0 0 8px;color:var(--ink-text);font-weight:600;}
@@ -157,6 +175,7 @@
 
       <div class="signers" id="signers"></div>
       <button class="add-signer" id="btn-add-signer" type="button">+ Añadir otro firmante</button>
+      <div class="contador" id="contador-firmantes">1 firmante en este contrato</div>
 
       <div class="final-declaration" id="final-declaration"></div>
 
@@ -175,6 +194,14 @@
   </section>
 
   <section id="view-firmados" class="view">
+    <div class="envio-box">
+      <h3>Enviar contratos por email</h3>
+      <input type="email" id="input-email-envio" placeholder="destinatario@correo.com" autocomplete="email">
+      <div class="envio-actions">
+        <button class="btn-envio" id="btn-enviar-todos">Enviar los pendientes por email</button>
+      </div>
+      <div class="envio-estado" id="envio-estado"></div>
+    </div>
     <div id="firmados-list"></div>
   </section>
 
@@ -357,7 +384,8 @@ function clausula1Texto(s, plano){
 function renderDoc(){
   const doc = document.getElementById('doc');
   const prevTop = doc.scrollTop;
-  const ids = Object.keys(signersData);
+  const ids = Array.from(document.querySelectorAll('.signer-card')).map(c => c.dataset.id);
+  actualizarContador(ids.length);
 
   doc.innerHTML = '';
   const add = (txt, isTitle) => {
@@ -404,6 +432,12 @@ function renderDoc(){
 
   doc.scrollTop = prevTop;
   actualizarProgresoLectura();
+}
+
+function actualizarContador(n){
+  const el = document.getElementById('contador-firmantes');
+  if (!el) return;
+  el.textContent = n === 1 ? '1 firmante en este contrato' : n + ' firmantes en este contrato';
 }
 
 /* ---------- progreso de lectura ---------- */
@@ -547,7 +581,15 @@ function addSigner(){
     getMenor: () => chkMenor.checked ? wrap.querySelector('.in-menor').value.trim() : '',
     getCalidad: () => chkMenor.checked ? wrap.querySelector('.in-calidad').value.trim() : '',
     hasSignature: () => hasSignature,
-    getSignatureDataUrl: () => canvas.toDataURL('image/png')
+    getSignatureDataUrl: () => {
+      // reducimos y comprimimos la firma para que el PDF no se dispare de tamaño
+      const tmp = document.createElement('canvas');
+      tmp.width = 360; tmp.height = 124;
+      const t = tmp.getContext('2d');
+      t.fillStyle = '#ffffff'; t.fillRect(0, 0, tmp.width, tmp.height);
+      t.drawImage(canvas, 0, 0, tmp.width, tmp.height);
+      return tmp.toDataURL('image/jpeg', 0.82);
+    }
   };
   renumerarFirmantes();
   renderDoc();
@@ -559,9 +601,94 @@ addSigner();
 function showError(msg){ const el=document.getElementById('error-msg'); el.textContent=msg; el.style.display='block'; }
 function hideError(){ document.getElementById('error-msg').style.display='none'; }
 
-/* ---------- almacenamiento ---------- */
-function getFirmados(){ try{ return JSON.parse(localStorage.getItem('hachaxe_firmados')||'[]'); }catch(e){ return []; } }
-function saveFirmados(l){ localStorage.setItem('hachaxe_firmados', JSON.stringify(l)); }
+/* ---------- almacenamiento (IndexedDB: admite muchos más contratos) ---------- */
+const DB_NOMBRE = 'hachaxe-contratos', DB_STORE = 'contratos';
+
+function abrirDB(){
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NOMBRE, 1);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains(DB_STORE)) d.createObjectStore(DB_STORE, {keyPath:'id'});
+    };
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror = e => reject(e.target.error);
+  });
+}
+
+function dataUrlABlob(dataUrl){
+  const [cab, b64] = dataUrl.split(',');
+  const mime = (cab.match(/:(.*?);/) || [null,'application/pdf'])[1];
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], {type: mime});
+}
+
+async function guardarContrato(reg){
+  const d = await abrirDB();
+  return new Promise((resolve, reject) => {
+    const tx = d.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).put(reg);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = e => reject(e.target.error);
+    tx.onabort = e => reject(tx.error || new Error('Transacción abortada'));
+  });
+}
+
+async function listarContratos(){
+  const d = await abrirDB();
+  return new Promise((resolve, reject) => {
+    const tx = d.transaction(DB_STORE, 'readonly');
+    const req = tx.objectStore(DB_STORE).getAll();
+    req.onsuccess = () => resolve((req.result||[]).sort((a,b) => b.timestamp - a.timestamp));
+    req.onerror = e => reject(e.target.error);
+  });
+}
+
+async function marcarEnviado(id, destino){
+  const d = await abrirDB();
+  return new Promise((resolve, reject) => {
+    const tx = d.transaction(DB_STORE, 'readwrite');
+    const store = tx.objectStore(DB_STORE);
+    const req = store.get(id);
+    req.onsuccess = () => {
+      const reg = req.result;
+      if (reg){
+        reg.enviado = true;
+        reg.enviadoA = destino;
+        reg.enviadoFecha = fechaCorta(new Date());
+        store.put(reg);
+      }
+      resolve(true);
+    };
+    req.onerror = e => reject(e.target.error);
+  });
+}
+
+async function borrarContrato(id){
+  const d = await abrirDB();
+  return new Promise((resolve, reject) => {
+    const tx = d.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).delete(id);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = e => reject(e.target.error);
+  });
+}
+
+// rescatamos lo que hubiera guardado la versión antigua
+async function migrarAntiguos(){
+  try{
+    const viejos = JSON.parse(localStorage.getItem('hachaxe_firmados') || '[]');
+    if (!viejos.length) return;
+    for (const v of viejos){
+      if (v.pdf && !v.pdfBlob) v.pdfBlob = dataUrlABlob(v.pdf);
+      delete v.pdf;
+      await guardarContrato(v);
+    }
+    localStorage.removeItem('hachaxe_firmados');
+  }catch(e){ console.warn('Migración no realizada', e); }
+}
 
 /* ---------- generación del PDF ---------- */
 function construirPDF(firmantes, d){
@@ -598,6 +725,18 @@ function construirPDF(firmantes, d){
   doc.setFont('times','bold'); doc.setFontSize(13);
   doc.text('EXONERACIÓN DE RESPONSABILIDAD', M, y); y += 20;
 
+  // resumen de firmantes
+  doc.setFont('times','bold'); doc.setFontSize(10);
+  doc.text(firmantes.length === 1 ? 'FIRMANTE' : 'FIRMANTES (' + firmantes.length + ')', M, y); y += 14;
+  doc.setFont('times','normal'); doc.setFontSize(9.5);
+  firmantes.forEach((f,i) => {
+    if (y + 14 > H - 56) nuevaPagina();
+    let linea = (i+1) + '. ' + f.nombre + '  ·  DNI/NIE: ' + f.dni;
+    if (f.menor) linea += '  ·  representa al menor ' + f.menor + (f.calidad ? ' (' + f.calidad + ')' : '');
+    doc.text(linea, M + 8, y); y += 13;
+  });
+  y += 10;
+
   parrafo(CONTRATO.intro, 10, 'normal', 10);
 
   firmantes.forEach((f,i) => {
@@ -617,23 +756,37 @@ function construirPDF(firmantes, d){
   espacio(70);
   parrafo(CONTRATO.declaracionFinal, 9.5, 'bold', 14);
 
-  // bloque de firmas
-  for (const f of firmantes){
-    if (y + 108 > H - 50) nuevaPagina();
-    doc.setDrawColor(200,195,178);
-    doc.line(M, y, W - M, y); y += 16;
+  // bloque de firmas: uno por firmante, con espacio garantizado
+  const ALTO_BLOQUE = 118;
+  firmantes.forEach((f, i) => {
+    if (y + ALTO_BLOQUE > H - 56) nuevaPagina();
+    const top = y;
+    doc.setDrawColor(200,195,178); doc.setLineWidth(0.7);
+    doc.line(M, top, W - M, top);
+    let ty = top + 17;
+    doc.setFont('times','bold'); doc.setFontSize(9);
+    doc.setTextColor(122,94,33);
+    doc.text('FIRMANTE ' + (i+1) + ' DE ' + firmantes.length, M, ty);
+    doc.setTextColor(0);
+    ty += 15;
     doc.setFont('times','bold'); doc.setFontSize(10.5);
-    doc.text('Firma contratante: ' + f.nombre, M, y); y += 14;
+    doc.text(f.nombre, M, ty); ty += 14;
     doc.setFont('times','normal'); doc.setFontSize(9.5);
-    doc.text('DNI/NIE: ' + f.dni, M, y); y += 13;
+    doc.text('DNI/NIE: ' + f.dni, M, ty); ty += 13;
     if (f.menor){
-      doc.text('En representación del menor: ' + f.menor + (f.calidad ? ' (en calidad de ' + f.calidad + ')' : ''), M, y);
-      y += 13;
+      doc.text('En representación del menor: ' + f.menor + (f.calidad ? ', en calidad de ' + f.calidad : ''), M, ty);
+      ty += 13;
     }
-    doc.text(fechaLarga(d), M, y);
-    try{ doc.addImage(f.firma, 'PNG', W - M - 175, y - 46, 170, 58); }catch(e){}
-    y += 30;
-  }
+    doc.text(fechaLarga(d), M, ty);
+    try{ doc.addImage(f.firma, 'JPEG', W - M - 170, top + 22, 165, 62); }catch(e){
+      doc.setFontSize(8); doc.setTextColor(180,60,50);
+      doc.text('[firma no incrustada]', W - M - 120, top + 50); doc.setTextColor(0);
+    }
+    doc.setFontSize(8); doc.setTextColor(140);
+    doc.text('Firma', W - M - 170, top + 96);
+    doc.setTextColor(0);
+    y = top + ALTO_BLOQUE;
+  });
 
   // pie con numeración
   const total = doc.internal.getNumberOfPages();
@@ -660,19 +813,22 @@ async function firmarContrato(){
     }
     if (!document.getElementById('chk-acepto').checked){ showError('Debes marcar la casilla de aceptación.'); return; }
 
-    const ids = Object.keys(signersData);
-    if (ids.length === 0){ showError('Añade al menos un firmante.'); return; }
+    // recorremos las tarjetas visibles, en su orden real en pantalla
+    const cards = Array.from(document.querySelectorAll('.signer-card'));
+    if (cards.length === 0){ showError('Añade al menos un firmante.'); return; }
 
     const firmantes = [];
-    for (const id of ids){
-      const s = signersData[id];
+    for (let i = 0; i < cards.length; i++){
+      const s = signersData[cards[i].dataset.id];
+      if (!s){ showError('Error interno leyendo el firmante ' + (i+1) + '. Recarga la página e inténtalo de nuevo.'); return; }
       const nombre = s.getNombre(), dni = s.getDni();
-      if (!nombre || !dni){ showError('Rellena el nombre y el DNI de todos los firmantes.'); return; }
+      if (!nombre || !dni){ showError('Falta el nombre o el DNI del firmante ' + (i+1) + '.'); return; }
       if (s.esMenor() && !s.getMenor()){ showError('Indica el nombre del menor al que representa ' + nombre + '.'); return; }
       if (s.esMenor() && !s.getCalidad()){ showError('Indica en calidad de qué firma ' + nombre + ' (padre, madre, tutor legal).'); return; }
-      if (!s.hasSignature()){ showError('Falta la firma de ' + nombre + '.'); return; }
+      if (!s.hasSignature()){ showError('Falta la firma del firmante ' + (i+1) + ' (' + nombre + ').'); return; }
       firmantes.push({nombre, dni, menor:s.getMenor(), calidad:s.getCalidad(), firma:s.getSignatureDataUrl()});
     }
+    console.log('Firmantes recogidos para el PDF:', firmantes.length, firmantes.map(f=>f.nombre));
 
     const d = hoy();
     const doc = construirPDF(firmantes, d);
@@ -683,15 +839,22 @@ async function firmarContrato(){
       fecha: fechaCorta(d),
       timestamp: Date.now(),
       nombreResumen,
-      firmantes: firmantes.map(f=>({nombre:f.nombre, dni:f.dni, menor:f.menor, calidad:f.calidad})),
-      pdf: pdfDataUrl
+      firmantes: firmantes.map(f=>({nombre:f.nombre, dni:f.dni, menor:f.menor, calidad:f.calidad}))
     };
 
-    let guardadoLocal = true;
+    let guardadoLocal = true, errorGuardado = '';
     try{
-      const list = getFirmados(); list.unshift(registro); saveFirmados(list);
-    }catch(err){ guardadoLocal = false; console.warn('Sin espacio local:', err); }
-    renderFirmados();
+      await guardarContrato({
+        id: registro.id, fecha: registro.fecha, timestamp: registro.timestamp,
+        nombreResumen: registro.nombreResumen, firmantes: registro.firmantes,
+        pdfBlob: dataUrlABlob(pdfDataUrl)
+      });
+    }catch(err){
+      guardadoLocal = false;
+      errorGuardado = (err && err.message) ? err.message : String(err);
+      console.error('No se pudo guardar en Firmados:', err);
+    }
+    await renderFirmados();
 
     try{
       const a = document.createElement('a');
@@ -701,8 +864,8 @@ async function firmarContrato(){
     }catch(err){ console.warn('Descarga automática fallida', err); }
 
     document.getElementById('seal-caption').textContent = guardadoLocal
-      ? 'Contrato guardado: ' + nombreResumen
-      : 'PDF descargado: ' + nombreResumen + ' (no cupo en el listado de la app)';
+      ? 'Guardado en Firmados: ' + nombreResumen + ' (' + firmantes.length + ' firmante' + (firmantes.length>1?'s':'') + ')'
+      : 'ATENCIÓN: el PDF se ha descargado pero NO se pudo guardar en Firmados. ' + errorGuardado;
     const overlay = document.getElementById('seal-overlay');
     overlay.classList.add('show');
     setTimeout(() => overlay.classList.remove('show'), 2000);
@@ -716,7 +879,6 @@ async function firmarContrato(){
     document.getElementById('doc').scrollTop = 0;
     actualizarProgresoLectura();
 
-    enviarAvisoEmail(registro);
   }catch(err){
     console.error('Error al firmar:', err);
     showError('Ha ocurrido un error al generar el contrato: ' + (err && err.message ? err.message : err));
@@ -725,58 +887,167 @@ async function firmarContrato(){
 document.getElementById('btn-sign').addEventListener('click', firmarContrato);
 
 /* ---------- email ---------- */
-async function enviarAvisoEmail(registro){
-  const url = localStorage.getItem('hachaxe_webhook_url');
-  const email = localStorage.getItem('hachaxe_email_destino');
-  if (!url) return;
+function blobABase64(blob){
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result).split(',')[1]);
+    fr.onerror = () => reject(fr.error);
+    fr.readAsDataURL(blob);
+  });
+}
+
+// Devuelve {ok:true} sólo si el servidor confirma el envío.
+async function enviarContratoPorEmail(reg, destino){
+  const url = (localStorage.getItem('hachaxe_webhook_url') || '').trim();
+  if (!url) return {ok:false, error:'Falta la URL del script de envío (pestaña Ajustes).'};
+  if (!destino) return {ok:false, error:'Falta el email de destino.'};
+  if (!reg.pdfBlob) return {ok:false, error:'Este contrato no tiene PDF guardado.'};
+
   try{
-    await fetch(url, {
-      method:'POST', mode:'no-cors',
-      headers:{'Content-Type':'application/json'},
+    const pdfBase64 = await blobABase64(reg.pdfBlob);
+    // cuerpo como texto plano: evita la petición previa CORS y permite leer la respuesta
+    const resp = await fetch(url, {
+      method: 'POST',
       body: JSON.stringify({
-        to: email || '',
-        asunto: 'Contrato firmado: ' + registro.nombreResumen,
-        fecha: registro.fecha,
-        firmantes: registro.firmantes,
-        pdfBase64: registro.pdf.split(',')[1]
+        to: destino,
+        asunto: 'Contrato firmado - ' + reg.nombreResumen + ' (' + reg.fecha + ')',
+        fecha: reg.fecha,
+        firmantes: reg.firmantes,
+        nombreArchivo: 'contrato-' + reg.id + '.pdf',
+        pdfBase64: pdfBase64
       })
     });
-  }catch(e){ console.warn('Aviso por email no enviado', e); }
+    if (!resp.ok) return {ok:false, error:'El servidor respondió ' + resp.status};
+    let datos;
+    try{ datos = JSON.parse(await resp.text()); }
+    catch(e){ return {ok:false, error:'Respuesta no reconocida del script de envío.'}; }
+    if (datos && datos.ok) return {ok:true};
+    return {ok:false, error:(datos && datos.error) ? datos.error : 'El script no confirmó el envío.'};
+  }catch(err){
+    return {ok:false, error:(err && err.message) ? err.message : String(err)};
+  }
+}
+
+function estadoEnvio(msg, tipo){
+  const el = document.getElementById('envio-estado');
+  el.textContent = msg;
+  el.className = 'envio-estado show' + (tipo ? ' ' + tipo : '');
+}
+
+async function enviarUno(id, btn){
+  const destino = (document.getElementById('input-email-envio').value || '').trim();
+  if (!destino){ estadoEnvio('Escribe primero el email de destino.', 'err'); return; }
+  const lista = await listarContratos();
+  const reg = lista.find(c => c.id === id);
+  if (!reg){ estadoEnvio('No se encontró ese contrato.', 'err'); return; }
+
+  if (btn){ btn.disabled = true; btn.textContent = '…'; }
+  estadoEnvio('Enviando ' + reg.nombreResumen + '…');
+  const r = await enviarContratoPorEmail(reg, destino);
+  if (r.ok){
+    localStorage.setItem('hachaxe_email_destino', destino);
+    await marcarEnviado(id, destino);
+    await renderFirmados();
+    estadoEnvio('Enviado a ' + destino + ': ' + reg.nombreResumen, 'ok');
+  } else {
+    if (btn){ btn.disabled = false; btn.innerHTML = '&#9993;'; }
+    estadoEnvio('No se pudo enviar: ' + r.error + ' (el contrato sigue guardado)', 'err');
+  }
+}
+
+async function enviarTodos(){
+  const destino = (document.getElementById('input-email-envio').value || '').trim();
+  const btn = document.getElementById('btn-enviar-todos');
+  if (!destino){ estadoEnvio('Escribe primero el email de destino.', 'err'); return; }
+
+  const todos = await listarContratos();
+  if (!todos.length){ estadoEnvio('No hay contratos guardados.', 'err'); return; }
+
+  const pendientes = todos.filter(c => !c.enviado);
+  if (!pendientes.length){
+    estadoEnvio('Todos los contratos guardados ya se han enviado. Usa el botón ✉ de cada uno para reenviarlo.', 'ok');
+    return;
+  }
+  if (!confirm('Se enviarán ' + pendientes.length + ' contrato(s) pendientes a ' + destino +
+               '.\n\nLos contratos se conservan en la app; solo se marcarán como enviados.')) return;
+
+  btn.disabled = true;
+  let enviados = 0; const fallidos = [];
+  for (let i = 0; i < pendientes.length; i++){
+    const reg = pendientes[i];
+    estadoEnvio('Enviando ' + (i+1) + ' de ' + pendientes.length + ': ' + reg.nombreResumen + '…');
+    const r = await enviarContratoPorEmail(reg, destino);
+    if (r.ok){ await marcarEnviado(reg.id, destino); enviados++; }
+    else { fallidos.push(reg.nombreResumen + ' (' + r.error + ')'); }
+  }
+  localStorage.setItem('hachaxe_email_destino', destino);
+  btn.disabled = false;
+  await renderFirmados();
+
+  if (fallidos.length === 0){
+    estadoEnvio('Listo: ' + enviados + ' contrato(s) enviados a ' + destino + '. Se conservan en la app.', 'ok');
+  } else {
+    estadoEnvio('Enviados ' + enviados + '. Fallaron ' + fallidos.length +
+                ' y siguen marcados como pendientes: ' + fallidos.join('; '), 'err');
+  }
 }
 
 /* ---------- listado de firmados ---------- */
-function renderFirmados(){
-  const list = getFirmados();
+const urlsTemporales = [];
+async function renderFirmados(){
   const el = document.getElementById('firmados-list');
+  let list = [];
+  try{ list = await listarContratos(); }
+  catch(e){
+    el.innerHTML = '<div class="empty-state"><div class="em-title">No se pudo leer el archivo</div>' +
+                   (e && e.message ? e.message : '') + '</div>';
+    return;
+  }
+  urlsTemporales.forEach(u => URL.revokeObjectURL(u));
+  urlsTemporales.length = 0;
+
   if (list.length === 0){
     el.innerHTML = '<div class="empty-state"><div class="em-title">Sin contratos firmados</div>Los contratos que firmes aparecerán aquí.</div>';
     return;
   }
   el.innerHTML = '';
   for (const c of list){
+    const url = c.pdfBlob ? URL.createObjectURL(c.pdfBlob) : (c.pdf || '#');
+    if (c.pdfBlob) urlsTemporales.push(url);
+    const menores = (c.firmantes||[]).filter(f=>f.menor).length;
+    const nf = (c.firmantes||[]).length;
     const div = document.createElement('div');
     div.className = 'list-item';
-    const menores = c.firmantes.filter(f=>f.menor).length;
     div.innerHTML =
       '<div class="li-main">' +
         '<div class="li-title">' + c.nombreResumen + '</div>' +
-        '<div class="li-sub">' + c.fecha + ' · ' + c.firmantes.length + ' firmante' + (c.firmantes.length>1?'s':'') +
+        '<div class="li-sub">' + c.fecha + ' · ' + nf + ' firmante' + (nf>1?'s':'') +
         (menores ? ' · ' + menores + ' menor' + (menores>1?'es':'') : '') + '</div>' +
+        (c.enviado
+          ? '<div class="badge enviado">Enviado ' + (c.enviadoFecha||'') + '</div>'
+          : '<div class="badge pendiente">Pendiente de enviar</div>') +
       '</div>' +
       '<div class="li-actions">' +
-        '<a class="icon-btn" href="' + c.pdf + '" download="contrato-' + c.id + '.pdf" title="Descargar">&#8595;</a>' +
+        '<button class="icon-btn" data-send="' + c.id + '" title="Enviar por email">&#9993;</button>' +
+        '<a class="icon-btn" href="' + url + '" target="_blank" rel="noopener" title="Ver">&#128065;</a>' +
+        '<a class="icon-btn" href="' + url + '" download="contrato-' + c.id + '.pdf" title="Descargar">&#8595;</a>' +
         '<button class="icon-btn" data-del="' + c.id + '" title="Eliminar">&#10005;</button>' +
       '</div>';
     el.appendChild(div);
   }
+  el.querySelectorAll('[data-send]').forEach(btn => {
+    btn.addEventListener('click', () => enviarUno(btn.dataset.send, btn));
+  });
   el.querySelectorAll('[data-del]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      saveFirmados(getFirmados().filter(c => c.id !== btn.dataset.del));
-      renderFirmados();
+    btn.addEventListener('click', async () => {
+      if (!confirm('¿Eliminar este contrato firmado? No se puede deshacer.')) return;
+      await borrarContrato(btn.dataset.del);
+      await renderFirmados();
     });
   });
 }
-renderFirmados();
+
+(async () => { await migrarAntiguos(); await renderFirmados(); })();
 
 /* ---------- navegación y ajustes ---------- */
 document.querySelectorAll('nav button').forEach(btn => {
@@ -786,6 +1057,7 @@ document.querySelectorAll('nav button').forEach(btn => {
     btn.classList.add('active');
     document.getElementById('view-' + btn.dataset.view).classList.add('active');
     if (btn.dataset.view === 'nuevo') actualizarProgresoLectura();
+    if (btn.dataset.view === 'firmados') renderFirmados();
   });
 });
 
@@ -801,6 +1073,17 @@ inputEmail.addEventListener('change', () => {
   localStorage.setItem('hachaxe_email_destino', inputEmail.value.trim());
   const n=document.getElementById('note-email'); n.style.display='block'; setTimeout(()=>n.style.display='none',1500);
 });
+
+document.getElementById('btn-enviar-todos').addEventListener('click', enviarTodos);
+
+const inputEnvio = document.getElementById('input-email-envio');
+inputEnvio.value = localStorage.getItem('hachaxe_email_destino') || '';
+inputEnvio.addEventListener('change', () => {
+  const v = inputEnvio.value.trim();
+  localStorage.setItem('hachaxe_email_destino', v);
+  inputEmail.value = v;
+});
+inputEmail.addEventListener('input', () => { inputEnvio.value = inputEmail.value; });
 
 setTimeout(actualizarProgresoLectura, 300);
 
